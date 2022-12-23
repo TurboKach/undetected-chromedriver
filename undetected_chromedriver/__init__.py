@@ -18,9 +18,7 @@ by UltrafunkAmsterdam (https://github.com/ultrafunkamsterdam)
 
 """
 
-
 __version__ = "3.1.7"
-
 
 import inspect
 import json
@@ -102,28 +100,29 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
     debug = False
 
     def __init__(
-        self,
-        options=None,
-        user_data_dir=None,
-        driver_executable_path=None,
-        browser_executable_path=None,
-        port=0,
-        enable_cdp_events=False,
-        service_args=None,
-        service_creationflags=None,
-        desired_capabilities=None,
-        advanced_elements=False,
-        service_log_path=None,
-        keep_alive=True,
-        log_level=0,
-        headless=False,
-        version_main=None,
-        patcher_force_close=False,
-        suppress_welcome=True,
-        use_subprocess=True,
-        debug=False,
-        no_sandbox=True,
-        **kw,
+            self,
+            options=None,
+            user_data_dir=None,
+            driver_executable_path=None,
+            browser_executable_path=None,
+            port=0,
+            enable_cdp_events=False,
+            service_args=None,
+            service_creationflags=None,
+            desired_capabilities=None,
+            advanced_elements=False,
+            service_log_path=None,
+            keep_alive=True,
+            log_level=0,
+            headless=False,
+            version_main=None,
+            patcher_force_close=False,
+            suppress_welcome=True,
+            use_subprocess=True,
+            debug=False,
+            no_sandbox=True,
+            spoof_headers=False,
+            **kw,
     ):
         """
         Creates a new instance of the chrome driver.
@@ -312,7 +311,7 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
             # check if an old uc.ChromeOptions is used, and extract the user data dir
 
             if hasattr(options, "user_data_dir") and getattr(
-                options, "user_data_dir", None
+                    options, "user_data_dir", None
             ):
                 import warnings
 
@@ -369,6 +368,10 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
             options.add_argument("--no-sandbox")
             # fixes "could not connect to chrome" error when running
             # on linux using privileged user like root (which i don't recommend)
+
+        if spoof_headers or options.spoof_headers:
+            options.spoof_headers = True
+            options.add_argument("--spoof-headers")
 
         options.add_argument(
             "--log-level=%d" % log_level
@@ -456,6 +459,9 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
         if options.headless:
             self._configure_headless()
 
+        if options.spoof_headers:
+            self._change_headers()
+
     def __getattribute__(self, item):
 
         if not super().__getattribute__("debug"):
@@ -465,7 +471,6 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
 
             original = super().__getattribute__(item)
             if inspect.ismethod(original) and not inspect.isclass(original):
-
                 def newfunc(*args, **kwargs):
                     logger.debug(
                         "calling %s with args %s and kwargs %s\n"
@@ -618,6 +623,36 @@ class Chrome(selenium.webdriver.chrome.webdriver.WebDriver):
             return orig_get(*args, **kwargs)
 
         self.get = get_wrapped
+
+    def _change_headers(self):
+        print('_change_headers')
+
+        logger.info("changing userAgent")
+        print("userAgent before change:", self.execute_script(
+            "return navigator.userAgent"
+        ))
+        logger.info("changing acceptLanguage")
+        print("acceptLanguage before change:", self.execute_script(
+            "return navigator.acceptLanguage"
+        ))
+
+        logger.info("patch user-agent string")
+        self.execute_cdp_cmd(
+            "Network.setUserAgentOverride",
+            {
+                "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
+                             "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 "
+                             "Mobile/15E148 Safari/604.1",  # required argument
+                "acceptLanguage": "en-gb;q=0.8, en;q=0.7",
+                # "platform": "",
+            },
+        )
+        print("userAgent after change:", self.execute_script(
+            "return navigator.userAgent"
+        ))
+        print("userAgent after change:", self.execute_script(
+            "return navigator.acceptLanguage"
+        ))
 
     def __dir__(self):
         return object.__dir__(self)
